@@ -7,7 +7,8 @@ export const saveHostKey = (code, key) => { try { localStorage.setItem('rr:host:
 const identityFor = code => { try { return JSON.parse(sessionStorage.getItem('rr:me:' + code)); } catch { return null; } };
 const saveIdentity = (code, v) => { try { sessionStorage.setItem('rr:me:' + code, JSON.stringify(v)); } catch { /* private mode */ } };
 
-const wsUrl = () => (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+// The room code is in the URL so the Cloudflare Worker can route the socket to that room.
+const wsUrl = code => (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?code=' + encodeURIComponent(code);
 
 export function useRoom(code, role) {
   const [snap, setSnap] = useState(null); // { room, you, now }
@@ -29,7 +30,7 @@ export function useRoom(code, role) {
     let timer = null;
 
     function connect() {
-      const ws = new WebSocket(wsUrl());
+      const ws = new WebSocket(wsUrl(code));
       wsRef.current = ws;
       setStatus(s => (s === 'open' ? 'connecting' : s));
       ws.onopen = () => {

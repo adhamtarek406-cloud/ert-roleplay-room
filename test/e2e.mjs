@@ -4,15 +4,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ATTRS } from "../shared/scorecard.js";
 
-// End-to-end: boots the server on a spare port and drives a host + 3 trainees over WebSockets.
-const PORT = 8799;
-const server = spawn(process.execPath, ["server/index.js"], { env: { ...process.env, PORT, DATA_FILE: join(tmpdir(), "rr-e2e-" + Date.now() + ".json") }, stdio: "ignore" });
-process.on("exit", () => server.kill());
-await new Promise(r => setTimeout(r, 800));
-const BASE = `http://localhost:${PORT}`;
+// End-to-end: drives a host + 3 trainees over WebSockets. Boots the Node server on a spare port,
+// or targets E2E_URL instead (e.g. E2E_URL=http://localhost:8790 with `npm run dev:worker` running).
+let BASE = process.env.E2E_URL;
+if (!BASE) {
+  const PORT = 8799;
+  const server = spawn(process.execPath, ["server/index.js"], { env: { ...process.env, PORT, DATA_FILE: join(tmpdir(), "rr-e2e-" + Date.now() + ".json") }, stdio: "ignore" });
+  process.on("exit", () => server.kill());
+  await new Promise(r => setTimeout(r, 800));
+  BASE = `http://localhost:${PORT}`;
+}
 const wait = ms => new Promise(r => setTimeout(r, ms));
 function client(hello) {
-  const ws = new WebSocket(BASE.replace('http', 'ws') + '/ws');
+  const ws = new WebSocket(BASE.replace('http', 'ws') + '/ws?code=' + hello.code);
   const c = { ws, last: null, msgs: [] };
   ws.on('message', d => { const m = JSON.parse(d); c.msgs.push(m); if (m.type === 'state') c.last = m; });
   c.ready = new Promise(r => ws.on('open', () => { ws.send(JSON.stringify(hello)); r(); }));

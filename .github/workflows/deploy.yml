@@ -1,0 +1,31 @@
+# Deploys to Cloudflare Workers on every push to main.
+# One-time setup: add repo secrets CLOUDFLARE_API_TOKEN (and CLOUDFLARE_ACCOUNT_ID if asked).
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Check Cloudflare token
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: test -n "$TOKEN" || { echo "::error::Add a Cloudflare API token as the CLOUDFLARE_API_TOKEN repo secret (see README)"; exit 1; }
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
