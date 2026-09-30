@@ -1,3 +1,13 @@
+---
+title: ERT Role-play Room
+emoji: 🎧
+colorFrom: purple
+colorTo: pink
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # ERT Role-play Room
 
 Live role-play training for the Experience Recovery team. A trainer opens a room and shares the link. One trainee takes the call while the trainer plays the customer, and everyone else scores them live on the ERT scorecard. The trainer reveals each round's results, and the session ends with a leaderboard.
@@ -13,9 +23,13 @@ npm test           # end-to-end: host + 3 trainees over real WebSockets
 npm run build && npm start   # production on http://localhost:8787 (PORT to override)
 ```
 
-## Deploy (Render)
+## Deploy (Hugging Face Spaces — free, no card)
 
-`render.yaml` defines a free Render web service. In Render: **New → Blueprint** and pick this repo. After that, every push to `main` redeploys. On the free plan the service sleeps after ~15 idle minutes (the first visit takes about a minute to wake), and sleeping or redeploying clears open rooms, so create a fresh room for each session.
+Every push to `main` runs `.github/workflows/deploy-hf.yml`, which uploads the repo to the Hugging Face Space `<your-hf-username>/ert-roleplay-room` (creating it on the first run). The Space builds the `Dockerfile` and serves the app at `https://<your-hf-username>-ert-roleplay-room.hf.space`, which is the link to share. Share that direct link rather than the huggingface.co page, which shows the app inside a frame.
+
+One-time setup: create a Hugging Face **write** access token and add it to this GitHub repo as the Actions secret `HF_TOKEN`.
+
+A free Space sleeps when idle (the first visit wakes it), and sleeping or redeploying clears open rooms, so create a fresh room for each session. `render.yaml` is kept as an alternative if you move to Render.
 
 To try it alone, create a room at `/`, then open the room link in other tabs. Trainee identity is kept per tab, so each tab can be a different trainee.
 
