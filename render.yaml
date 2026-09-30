@@ -1,0 +1,13 @@
+# Render Blueprint — one Node web service running the room server (HTTP + WebSockets).
+services:
+  - type: web
+    name: ert-roleplay-room
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

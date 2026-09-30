@@ -1,0 +1,74 @@
+import WebSocket from 'ws';
+import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ATTRS } from "../shared/scorecard.js";
+
+// End-to-end: boots the server on a spare port and drives a host + 3 trainees over WebSockets.
+const PORT = 8799;
+const server = spawn(process.execPath, ["server/index.js"], { env: { ...process.env, PORT, DATA_FILE: join(tmpdir(), "rr-e2e-" + Date.now() + ".json") }, stdio: "ignore" });
+process.on("exit", () => server.kill());
+await new Promise(r => setTimeout(r, 800));
+const BASE = `http://localhost:${PORT}`;
+const wait = ms => new Promise(r => setTimeout(r, ms));
+function client(hello) {
+  const ws = new WebSocket(BASE.replace('http', 'ws') + '/ws');
+  const c = { ws, last: null, msgs: [] };
+  ws.on('message', d => { const m = JSON.parse(d); c.msgs.push(m); if (m.type === 'state') c.last = m; });
+  c.ready = new Promise(r => ws.on('open', () => { ws.send(JSON.stringify(hello)); r(); }));
+  c.send = (type, p = {}) => ws.send(JSON.stringify({ type, ...p }));
+  c.errors = () => c.msgs.filter(m => m.type === 'error').map(m => m.message);
+  return c;
+}
+const ok = (cond, label) => { console.log((cond ? 'PASS ' : 'FAIL ') + label); if (!cond) process.exitCode = 1; };
+
+const { code, hostKey } = await (await fetch(BASE + '/api/rooms', { method: 'POST', body: JSON.stringify({ name: 'Test room', trainerName: 'Hana', settings: { partialCredit: true } }) })).json();
+ok(/^ERT-\d{4}$/.test(code), 'room created ' + code);
+const host = client({ type: 'hello', code, role: 'host', hostKey }); await host.ready;
+const fake = client({ type: 'hello', code, role: 'host', hostKey: 'nope' }); await fake.ready; await wait(150);
+ok(fake.msgs.some(m => m.type === 'not-host'), 'wrong host key rejected');
+host.send('addTrainee', { name: 'Reem Al-Qahtani' }); await wait(100);
+const names = ['Sara', 'Omar', 'Reem al-qahtani'];
+const T = names.map(() => client({ type: 'hello', code, role: 'trainee' }));
+for (const t of T) await t.ready;
+await wait(100);
+T.forEach((t, i) => t.send('join', { name: names[i] })); await wait(200);
+const ids = T.map(t => t.last.you.id);
+ok(host.last.room.trainees.length === 3 && host.last.room.trainees.every(t => t.status === 'joined'), 'invited slot claimed by name, 3 joined');
+T[0].send('startRound', { performerId: ids[0] }); await wait(100);
+ok(T[0].errors().includes('Not allowed'), 'trainee cannot run host actions');
+host.send('startRound', { performerId: ids[0] }); await wait(150);
+const r = host.last.room.round;
+ok(r && r.status === 'live' && r.scorerIds.length === 2, 'round live with 2 scorers');
+host.send('endRound'); await wait(100);
+ok(host.errors().includes('Wait for at least one scorecard'), 'cannot reveal with 0 subs');
+T[1].send('submit', { answers: { a1: 'met' } }); await wait(100);
+ok(T[1].errors().some(e => e.startsWith('Answer every')), 'incomplete scorecard rejected');
+const all = v => Object.fromEntries(ATTRS.map(a => [a.id, v]));
+T[1].send('submit', { answers: all('met') });
+T[2].send('submit', { answers: { ...all('met'), a11: 'miss' } }); await wait(150);
+ok(!JSON.stringify(host.last.room).includes('"a11"'), 'host cannot see answers before reveal');
+ok(T[2].last.room.mySubmission?.a11 === 'miss' && T[1].last.room.mySubmission?.a11 === 'met', 'each trainee sees only own submission');
+T[0].send('submit', { answers: all('met') }); await wait(100);
+ok(T[0].errors().includes("You're not scoring this round"), 'performer cannot score self');
+host.send('endRound'); await wait(150);
+const res = host.last.room.round.result;
+ok(res.raw === 93 && res.final === 93 && res.af.length === 0, `result raw ${res.raw} final ${res.final} (a11 mean .5 → no auto-fail)`);
+ok(T[1].last.room.round.result.final === 93, 'trainees receive revealed result');
+host.send('nextRound'); await wait(100);
+host.send('startRound', { performerId: ids[1] }); await wait(100);
+T[0].send('submit', { answers: all('miss') }); await wait(100);
+host.send('endRound'); await wait(150);
+const r2 = host.last.room.round.result;
+ok(r2.final === 0 && r2.af.length === 6, `all-miss round zeroed by auto-fail (${r2.af.length} auto-fails)`);
+// reconnect with token
+const me = T[2].msgs.find(m => m.type === 'identity');
+T[2].ws.close(); await wait(150);
+ok(host.last.room.trainees.find(t => t.id === ids[2]).online === false, 'presence goes offline on disconnect');
+const back = client({ type: 'hello', code, role: 'trainee', id: me.id, token: me.token }); await back.ready; await wait(150);
+ok(back.last.you.id === ids[2], 'reconnect with token restores identity');
+host.send('removeTrainee', { id: ids[2] }); await wait(150);
+ok(back.last.you.removed && !back.last.you.id, 'removed trainee is told');
+host.send('finish'); await wait(100);
+ok(T[0].last.room.stage === 'final' && T[0].last.room.rounds.length === 2, 'session ended, leaderboard data broadcast');
+process.exit();

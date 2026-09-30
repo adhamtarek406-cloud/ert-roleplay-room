@@ -1,0 +1,48 @@
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--soft-grey-p2); color: var(--text-primary); min-height: 100vh; }
+button, input { font: inherit; }
+input:focus-visible { border-color: var(--border-focus) !important; box-shadow: var(--focus-ring); }
+button:focus-visible { outline: none; box-shadow: var(--focus-ring) !important; }
+
+@keyframes rr-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
+@keyframes rr-in { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+@keyframes tamara-spin { to { transform: rotate(360deg) } }
+
+.rr-header {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(255,255,255,.86);
+  backdrop-filter: var(--blur-nav); -webkit-backdrop-filter: var(--blur-nav);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rr-remove {
+  width: 32px; height: 32px; border: none; border-radius: 999px; background: transparent; cursor: pointer; flex: none;
+  display: flex; align-items: center; justify-content: center; color: var(--text-muted);
+  transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.rr-remove:hover { background: var(--danger-surface); color: var(--danger); }
+
+.rr-history {
+  display: flex; align-items: center; gap: 10px; border: none; background: var(--soft-grey-p2); border-radius: 14px;
+  padding: 10px 12px; cursor: pointer; text-align: left; font-family: var(--font-body);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.rr-history:hover { background: var(--surface-brand-softer); }
+
+.rr-chip {
+  display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px 0 6px; border-radius: 999px;
+  border: 1px solid var(--border-default); background: #fff; cursor: pointer;
+  font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--text-primary);
+  transition: background var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
+}
+.rr-chip:hover { background: var(--surface-brand-softer); border-color: var(--dreamy-lilac); }
+
+@media (max-width: 720px) {
+  main { padding: 16px !important; }
+  .rr-header > div { padding: 10px 16px !important; }
+  .rr-hero { font-size: 40px !important; }
+}
+/* Below this the category index wraps above the scorecard, so it stops being sticky. */
+@media (max-width: 671px) {
+  .rr-catnav { position: static !important; max-width: none !important; }
+}
